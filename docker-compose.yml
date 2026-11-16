@@ -1,0 +1,10 @@
+services:
+  modir:
+    build: .
+    container_name: modir
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+      - ./static:/app/static:ro
+    restart: unless-stopped

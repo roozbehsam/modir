@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Modir</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/style.css">
+  <script>try { if (localStorage.theme === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}</script>
+</head>
+<body>
+  <header id="topbar">
+    <a class="brand" href="#/"><img src="/favicon.svg" alt="" width="20" height="20"> Modir</a>
+    <nav class="nav">
+      <a href="#/" data-nav="overview">Overview</a>
+      <a href="#/done" data-nav="done">Done</a>
+    </nav>
+    <div class="grow"></div>
+    <button class="btn sm primary" data-act="new-project" data-v="project">+ <span class="wide-only">New </span>project</button>
+    <button class="btn sm" data-act="new-project" data-v="task">+ <span class="wide-only">New </span>task</button>
+    <button class="btn sm theme-toggle" data-act="theme"></button>
+  </header>
+
+  <aside id="detail"></aside>
+  <main id="main"></main>
+  <aside id="rail" hidden></aside>
+
+  <dialog id="dlg">
+    <form data-form="new-project" method="dialog" class="stack">
+      <h3>New</h3>
+      <div class="typepick">
+        <label><input type="radio" name="type" value="project" checked><span>Project</span></label>
+        <label><input type="radio" name="type" value="task"><span>Task</span></label>
+      </div>
+      <input name="name" placeholder="Name" required autofocus>
+      <textarea name="description" rows="3" placeholder="What is it about? (optional)"></textarea>
+      <label>Priority
+        <select name="priority">
+          <option value="1">P1 — top</option>
+          <option value="2" selected>P2 — high</option>
+          <option value="3">P3 — normal</option>
+          <option value="4">P4 — someday</option>
+        </select>
+      </label>
+      <div class="swatches" data-swatches></div>
+      <input type="hidden" name="color">
+      <div class="row end">
+        <button type="button" class="btn" data-act="close-dlg">Cancel</button>
+        <button class="btn primary">Create</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/app.js"></script>
+</body>
+</html>
