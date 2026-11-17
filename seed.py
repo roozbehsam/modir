@@ -44,7 +44,7 @@ PROJECTS = [
      ["Installed Proxmox", "ZFS pool configured", "Set up nightly backups", "Nextcloud container",
       "Reverse proxy with Caddy"],
      ["Set up UPS shutdown script"]),
-    ("Tax return 2025", "", "done", 2, "#06b6d4", [(200, 185, .5)],
+    ("Tax return 2025", "", "closed", 2, "#06b6d4", [(200, 185, .5)],
      ["Collected invoices", "Filled the forms", "Sent to accountant", "Paid and filed"], []),
 ]
 

@@ -61,17 +61,17 @@ function ago(at) {
 // ---------- state & routing -------------------------------------------------
 const state = { projects: [], entries: [], current: null, range: 90, focus: null, logDays: 10, todoSort: 'newest' };
 
-// URL shape: "#/" or "#/done" picks the main page; an optional "/p/<id>" suffix
+// URL shape: "#/" or "#/closed" picks the main page; an optional "/p/<id>" suffix
 // opens that project in the left detail panel next to it.
 async function route(full = true) {
-  const m = location.hash.match(/^#\/(done)?\/?(?:p\/(\d+))?/);
-  const page = m?.[1] ? 'done' : 'overview';
+  const m = location.hash.match(/^#\/(closed|done)?\/?(?:p\/(\d+))?/);  // #/done: old links
+  const page = m?.[1] ? 'closed' : 'overview';
   const cur = m?.[2] ? +m[2] : null;
   state.projects = await api('GET', '/api/projects');
   if (full || state.dirty || page !== state.page) {
     state.page = page; state.dirty = false;
     document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === page));
-    if (page === 'done') showDone(); else await showOverview();
+    if (page === 'closed') showClosed(); else await showOverview();
   }
   const opened = cur !== state.current;
   state.current = cur;
@@ -81,7 +81,7 @@ async function route(full = true) {
 }
 window.addEventListener('hashchange', () => route(false));
 
-const baseHash = () => state.page === 'done' ? '#/done' : '#/';
+const baseHash = () => state.page === 'closed' ? '#/closed' : '#/';
 // Empty the detail panel, letting its content fade out first.
 function closeDetail() {
   const v = $('.dview', detail);
@@ -98,23 +98,23 @@ document.addEventListener('keydown', e => {
   closeDetail();
 });
 
-// ---------- done page -------------------------------------------------------
+// ---------- closed page -----------------------------------------------------
 // Finished projects and tasks live here instead of cluttering the overview.
-function showDone() {
+function showClosed() {
   showRail(null);
-  const done = state.projects.filter(p => p.status === 'done');
+  const done = state.projects.filter(p => p.status === 'closed');
   main.innerHTML = `
     <header class="head"><div>
-      <h1>Done</h1>
+      <h1>Closed</h1>
       <p class="muted">${plural(done.filter(p => p.type !== 'task').length, 'project')} · ${plural(done.filter(p => p.type === 'task').length, 'task')}</p>
     </div></header>
     ${done.length ? `<div class="tasklist">${done.map(p => `
-      <a class="taskrow" href="#/done/p/${p.id}" data-pid="${p.id}" style="--c:${p.color}">
+      <a class="taskrow" href="#/closed/p/${p.id}" data-pid="${p.id}" style="--c:${p.color}">
         <span class="prio p${p.priority}">P${p.priority}</span>
         <span class="tdot"></span>
         <span class="tmain"><b dir="auto">${esc(p.name)}</b>${typeTag(p)}</span>
         <span class="tside small muted">${p.actions} action${p.actions === 1 ? '' : 's'} · last ${ago(p.last_at)}</span>
-      </a>`).join('')}</div>` : '<p class="muted">Nothing finished yet.</p>'}`;
+      </a>`).join('')}</div>` : '<p class="muted">Nothing closed yet.</p>'}`;
 }
 
 // ---------- overview --------------------------------------------------------
@@ -125,7 +125,7 @@ async function showOverview() {
     api('GET', `/api/timeline?from=${dayKey(start)}`),
     api('GET', '/api/todos'),
   ]);
-  const active = state.projects.filter(p => p.status !== 'done');
+  const active = state.projects.filter(p => p.status !== 'closed');
   // One row per priority tier (P1 → P4). Within a row: open projects first, then
   // blocked, then paused; ties keep the API order (most recent activity first).
   // Projects get the big priority-tier cards; tasks get a compact list below.
@@ -199,7 +199,7 @@ async function showOverview() {
 // active task. A task is itself a todo; its own todos are nested under it.
 function todoRail(todos) {
   const sort = state.todoSort;
-  const tasks = state.projects.filter(p => p.type === 'task' && p.status !== 'done');
+  const tasks = state.projects.filter(p => p.type === 'task' && p.status !== 'closed');
   const taskIds = new Set(tasks.map(t => t.id));
   const byCreated = (a, b) => a.created_at.localeCompare(b.created_at) || a.id - b.id;
 
@@ -290,12 +290,13 @@ function dailyLog(acts) {
         <ol class="flow">
           ${list.map((a, i) => {
             const p = proj(a), switched = i > 0 && list[i - 1].project_id !== a.project_id;
-            return `<li style="--c:${p.color}" class="${switched ? 'switch' : ''}">
+            const isTask = p.type === 'task';
+            return `<li style="--c:${p.color}" class="${switched ? 'switch' : ''} ${isTask ? 'is-task' : ''}">
               <time>${a.at.slice(11, 16)}</time>
               <span class="node"></span>
               <div class="what">
-                <a class="tag" href="#/p/${a.project_id}">${esc(p.name)}</a>
-                <span>${esc(a.title)}</span>
+                <a class="tag ${isTask ? 'task' : ''}" href="#/p/${a.project_id}" ${isTask ? 'title="Task"' : ''}>${esc(p.name)}</a>
+                ${isTask && a.title === 'Done' ? '<span class="done-mark">✓ Done</span>' : `<span>${esc(a.title)}</span>`}
                 ${a.note ? `<small class="muted block">${esc(a.note)}</small>` : ''}
               </div>
             </li>`;
@@ -337,7 +338,7 @@ async function showProject(opened) {
       </div>
       ${p.description ? `<p class="desc" dir="auto">${esc(p.description)}</p>` : ''}
       <div class="controls">
-        <select data-pfield="status">${['open', 'blocked', 'paused', 'done'].map(s => `<option ${s === p.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
+        <select data-pfield="status">${['open', 'blocked', 'paused', 'closed'].map(s => `<option ${s === p.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
         <select data-pfield="priority">${[1, 2, 3, 4].map(n => `<option value="${n}" ${n === p.priority ? 'selected' : ''}>P${n} · ${PRIO[n]}</option>`).join('')}</select>
         <button class="btn sm" data-act="edit-project">Edit</button>
       </div>
@@ -513,7 +514,7 @@ document.addEventListener('submit', async ev => {
     $('#dlg').close();
     f.reset();
     state.dirty = true;
-    location.hash = `${state.page === 'done' ? '#/done' : '#'}/p/${p.id}`;
+    location.hash = `${state.page === 'closed' ? '#/closed' : '#'}/p/${p.id}`;
     return;
   }
   route();
@@ -577,8 +578,9 @@ document.addEventListener('click', async ev => {
     case 'complete-task': {
       const k = state.projects.find(p => p.id === +id);
       if (+el.dataset.subs && !confirm(`"${k.name}" still has ${plural(+el.dataset.subs, 'open todo')}. Mark the task done anyway?`)) return;
-      await api('POST', `/api/projects/${id}/entries`, { kind: 'action', title: `Done: ${k.name}`, at: nowLocal() });
-      await api('PATCH', `/api/projects/${id}`, { status: 'done' });
+      // Checking off a task logs a plain "Done" action (the day log shows the task's name next to it).
+      await api('PATCH', `/api/projects/${id}`, { status: 'closed' });
+      await api('POST', `/api/projects/${id}/entries`, { kind: 'action', title: 'Done', at: nowLocal() });
       return route();
     }
     case 'resolve':

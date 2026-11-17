@@ -248,6 +248,13 @@ body.has-rail { grid-template-columns: var(--dw) minmax(0, 1fr) 300px; }
   color: var(--c); background: color-mix(in srgb, var(--c) 13%, transparent);
 }
 .flow .tag:hover { background: color-mix(in srgb, var(--c) 25%, transparent); }
+.flow .tag.task { border-radius: 4px; }
+.flow .tag.task::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 5px; vertical-align: 1px;
+  background: var(--c); transform: rotate(45deg);
+}
+.flow li.is-task .node::before { border-radius: 1px; transform: rotate(45deg); }
+.done-mark { font-size: 12px; font-weight: 600; color: var(--c); }
 .log-gap { text-align: center; font-size: 11px; font-style: italic; color: var(--muted); padding: 2px 0; }
 
 /* project columns */

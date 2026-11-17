@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS projects (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT    NOT NULL,
     description TEXT    NOT NULL DEFAULT '',
-    status      TEXT    NOT NULL DEFAULT 'open',   -- open | blocked | paused | done
+    status      TEXT    NOT NULL DEFAULT 'open',   -- open | blocked | paused | closed
     priority    INTEGER NOT NULL DEFAULT 2,        -- 1 (top) .. 4 (low)
     color       TEXT    NOT NULL DEFAULT '#6366f1',
     type        TEXT    NOT NULL DEFAULT 'project', -- project | task
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS entries (
 CREATE INDEX IF NOT EXISTS idx_entries_project ON entries(project_id, kind, at);
 """
 
-STATUSES = {"open", "blocked", "paused", "done"}
+STATUSES = {"open", "blocked", "paused", "closed"}
 KINDS = {"todo", "action", "blocker"}
 TYPES = {"project", "task"}
 
@@ -62,6 +62,14 @@ def init_db():
         cols = {r[1] for r in conn.execute("PRAGMA table_info(projects)")}
         if "type" not in cols:  # migrate databases created before tasks existed
             conn.execute("ALTER TABLE projects ADD COLUMN type TEXT NOT NULL DEFAULT 'project'")
+        # One-time migration: 'done' was renamed to 'closed', and closing a task used to log a
+        # "Done: <name>" / "Closed: <name>" action. Closing is no longer logged, so drop those.
+        if conn.execute("UPDATE projects SET status = 'closed' WHERE status = 'done'").rowcount:
+            conn.execute(
+                """DELETE FROM entries
+                   WHERE kind = 'action' AND (title LIKE 'Done: %' OR title LIKE 'Closed: %')
+                     AND project_id IN (SELECT id FROM projects WHERE type = 'task')"""
+            )
 
 
 def clean(data, allowed):
@@ -225,7 +233,7 @@ def open_todos():
         """
         SELECT e.id, e.project_id, e.title, e.note, e.created_at, p.name AS project, p.color
         FROM entries e JOIN projects p ON p.id = e.project_id
-        WHERE e.kind = 'todo' AND p.status != 'done'
+        WHERE e.kind = 'todo' AND p.status != 'closed'
         ORDER BY e.created_at DESC, e.id DESC
         """
     ).fetchall()
