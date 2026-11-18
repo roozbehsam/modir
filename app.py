@@ -1,12 +1,84 @@
+import hmac
 import os
+import secrets
 import sqlite3
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 
-from flask import Flask, abort, g, jsonify, request
+from flask import Flask, abort, g, jsonify, redirect, request, session
 
 DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(__file__), "data", "modir.db"))
 
 app = Flask(__name__, static_folder="static", static_url_path="")
+
+# ---- auth -------------------------------------------------------------------
+# Single-user login. Credentials come from the environment; MODIR_PASSWORD is required.
+USERNAME = os.environ.get("MODIR_USER", "admin")
+PASSWORD = os.environ.get("MODIR_PASSWORD", "")
+if not PASSWORD:
+    raise SystemExit("MODIR_PASSWORD is not set — refusing to start without a login password.")
+
+
+def secret_key():
+    """SECRET_KEY from the environment, else a random key kept next to the database so logins survive restarts."""
+    if os.environ.get("SECRET_KEY"):
+        return os.environ["SECRET_KEY"]
+    path = os.path.join(os.path.dirname(DB_PATH) or ".", "secret_key")
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    if not os.path.exists(path):
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(secrets.token_hex(32))
+    with open(path) as f:
+        return f.read().strip()
+
+
+app.config.update(
+    SECRET_KEY=secret_key(),
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("SECURE_COOKIES", "") == "1",
+    PERMANENT_SESSION_LIFETIME=timedelta(days=30),
+)
+
+PUBLIC_PATHS = {"/login", "/login.html", "/style.css", "/favicon.svg"}
+
+
+@app.before_request
+def require_login():
+    if request.path in PUBLIC_PATHS or session.get("user") == USERNAME:
+        return None
+    if request.path.startswith("/api/"):
+        return jsonify(error="login required"), 401
+    return redirect("/login")
+
+
+@app.get("/login")
+def login_page():
+    if session.get("user") == USERNAME:
+        return redirect("/")
+    return app.send_static_file("login.html")
+
+
+@app.post("/login")
+def login():
+    user = request.form.get("username", "")
+    pw = request.form.get("password", "")
+    ok_user = hmac.compare_digest(user.encode(), USERNAME.encode())
+    ok_pw = hmac.compare_digest(pw.encode(), PASSWORD.encode())
+    if not (ok_user and ok_pw):
+        time.sleep(1)  # slow down guessing
+        return redirect("/login?error=1")
+    session.clear()
+    session["user"] = USERNAME
+    session.permanent = bool(request.form.get("remember"))
+    return redirect("/")
+
+
+@app.post("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS projects (
@@ -14,7 +86,7 @@ CREATE TABLE IF NOT EXISTS projects (
     name        TEXT    NOT NULL,
     description TEXT    NOT NULL DEFAULT '',
     status      TEXT    NOT NULL DEFAULT 'open',   -- open | blocked | paused | closed
-    priority    INTEGER NOT NULL DEFAULT 2,        -- 1 (top) .. 4 (low)
+    priority    INTEGER NOT NULL DEFAULT 2,        -- 1 (top) .. 3 (normal)
     color       TEXT    NOT NULL DEFAULT '#6366f1',
     type        TEXT    NOT NULL DEFAULT 'project', -- project | task
     created_at  TEXT    NOT NULL
@@ -64,6 +136,7 @@ def init_db():
             conn.execute("ALTER TABLE projects ADD COLUMN type TEXT NOT NULL DEFAULT 'project'")
         # One-time migration: 'done' was renamed to 'closed', and closing a task used to log a
         # "Done: <name>" / "Closed: <name>" action. Closing is no longer logged, so drop those.
+        conn.execute("UPDATE projects SET priority = 3 WHERE priority > 3")  # P4 was folded into P3
         if conn.execute("UPDATE projects SET status = 'closed' WHERE status = 'done'").rowcount:
             conn.execute(
                 """DELETE FROM entries
@@ -81,7 +154,7 @@ def clean(data, allowed):
     if "kind" in out and out["kind"] not in KINDS:
         abort(400, "bad kind")
     if "priority" in out:
-        out["priority"] = min(4, max(1, int(out["priority"])))
+        out["priority"] = min(3, max(1, int(out["priority"])))
     for key in ("name", "title"):
         if key in out:
             out[key] = str(out[key]).strip()
@@ -260,4 +333,4 @@ def timeline():
 init_db()
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 3000)), debug=True)
+    app.run(host="127.0.0.1", port=int(os.environ.get("PORT", 3000)), debug=True)

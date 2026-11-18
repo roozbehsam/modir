@@ -3,8 +3,11 @@ services:
     build: .
     container_name: modir
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - ./data:/data
       - ./static:/app/static:ro
+    environment:
+      MODIR_USER: ${MODIR_USER:-admin}
+      MODIR_PASSWORD: ${MODIR_PASSWORD:?set MODIR_PASSWORD in .env}
     restart: unless-stopped

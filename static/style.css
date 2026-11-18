@@ -15,7 +15,7 @@
 }
 * { box-sizing: border-box; }
 body {
-  --top: 48px; --dw: clamp(380px, 32vw, 500px);
+  --top: 48px; --dw: clamp(400px, 34vw, 580px);
   margin: 0; display: grid; grid-template-columns: var(--dw) minmax(0, 1fr); grid-template-rows: var(--top) 1fr;
   min-height: 100vh; overflow-x: clip;
   background: var(--bg); color: var(--text);
@@ -79,13 +79,10 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color:
   position: sticky; top: var(--top); height: calc(100vh - var(--top)); overflow-y: auto; overscroll-behavior: contain;
   border-right: 1px solid var(--line); padding: 20px 18px;
 }
-.dempty {
-  height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
-  gap: 6px; color: var(--muted); animation: fade .3s ease;
-}
-.dempty b { color: var(--text); font-weight: 600; }
-.dempty p { margin: 0; max-width: 220px; }
-.dempty-ring { width: 56px; height: 56px; border-radius: 50%; border: 2px dashed var(--line); margin-bottom: 8px; }
+.dlog.entering { animation: fade .25s ease; }
+.dlog > .row { margin-bottom: 12px; }
+.dlog h2 { margin: 0; }
+#detail .log-day { grid-template-columns: 72px 1fr; gap: 12px; padding: 12px 14px; }
 .dview.entering { animation: dview-in .26s cubic-bezier(.2, .8, .2, 1); }
 .dview.leaving { animation: dview-out .14s ease-in forwards; }
 @keyframes dview-in { from { opacity: 0; transform: translateX(-16px); } }
@@ -138,17 +135,18 @@ main { padding: 24px 32px; min-width: 0; }
 /* top cards */
 .tier + .tier { margin-top: 18px; }
 .tier-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
 .topcard {
   background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--c);
-  border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow);
+  border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 5px; box-shadow: var(--shadow); font-size: 13px;
   transition: transform .15s;
 }
 .topcard:hover { transform: translateY(-2px); }
 .topcard.st-paused { opacity: .55; }
 .topcard.st-blocked { border-top-style: dashed; }
 .topcard.st-paused:hover { opacity: .85; }
-.topcard .next { font-size: 13px; }
+.topcard .next { font-size: 12.5px; }
+.topcard .next.has-todo { color: color-mix(in srgb, var(--c) 80%, var(--text)); font-weight: 500; }
 
 /* overview task list: compact rows instead of cards */
 .tasklist {
@@ -182,7 +180,6 @@ body.has-rail { grid-template-columns: var(--dw) minmax(0, 1fr) 300px; }
 .rail-list { list-style: none; margin: 0; padding: 0; }
 .rail-list li { display: flex; gap: 8px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); }
 .rail-meta { margin-top: 4px; flex-wrap: wrap; gap: 6px; }
-.rail-list li.task .tname { font-weight: 600; }
 .rail-list li.task .ttag { margin-left: 0; }
 .rail-list li.task.st-paused { opacity: .6; }
 .rail-list li.sub { padding: 5px 0 5px 26px; border-top: 0; font-size: 13px; }
@@ -339,14 +336,14 @@ dialog::backdrop { background: rgba(0,0,0,.35); backdrop-filter: blur(2px); }
   #rail { grid-column: 2; position: static; height: auto; border-left: 0; border-top: 1px solid var(--line); }
 }
 @media (max-width: 900px) {
-  body, body.has-rail { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; }
+  body, body.has-rail { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; align-content: start; }
   #topbar .grow { flex: 1; }
   .wide-only { display: none; }
   .brand { padding-right: 2px; }
   #topbar { gap: 4px; padding: 0 10px; }
   #detail { position: static; height: auto; max-height: none; border-right: 0; border-bottom: 1px solid var(--line); padding: 16px; }
-  .dempty { padding: 6px 0; flex-direction: row; gap: 10px; }
-  .dempty-ring, .dempty p { display: none; }
+  body.log-mode #detail { order: 3; border-bottom: 0; border-top: 1px solid var(--line); }
+  #detail .log-day { grid-template-columns: 1fr; gap: 8px; }
   #rail { grid-column: auto; }
   main { padding: 20px 16px; }
   .head { flex-direction: column; }
@@ -354,4 +351,44 @@ dialog::backdrop { background: rgba(0,0,0,.35); backdrop-filter: blur(2px); }
   .tmain b { max-width: 100%; }
   .log-day { grid-template-columns: 1fr; gap: 8px; }
   .log-date { flex-direction: row; align-items: baseline; gap: 8px; }
+  .cards-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  input, textarea, select { font-size: 16px; }  /* stops iOS zooming in on focus */
+  .seg button { padding-left: 8px; padding-right: 8px; }
 }
+.narrow-only { display: none; }
+@media (max-width: 900px) {
+  .narrow-only { display: inline; }
+}
+@media (max-width: 600px) {
+  .taskrow { grid-template-columns: auto auto minmax(0, 1fr); row-gap: 2px; padding: 9px 12px; }
+  .tside { grid-column: 3; white-space: normal; flex-wrap: wrap; gap: 6px; }
+  .flow li { grid-template-columns: 38px 14px 1fr; gap: 8px; }
+  .river { padding-left: 64px; }
+  .river::before { left: 30px; }
+  .pulse { left: -40px; }
+  .gap::before { left: -34px; }
+  .month { margin-left: -64px; }
+  .bubble { left: calc(-33px - var(--s) / 2); }
+  .origin::before { left: -39px; }
+}
+@media (max-width: 420px) {
+  .brand-name { display: none; }
+  .nav a { padding: 5px 7px; }
+  #topbar .btn.sm { padding: 5px 9px; }
+}
+/* touch screens have no hover: keep the edit/delete controls visible */
+@media (hover: none) {
+  .todos li .icon, .card .tools { opacity: 1; }
+}
+
+/* login page */
+body.login { display: flex; align-items: center; justify-content: center; padding: 16px; }
+.login-box {
+  width: 100%; max-width: 340px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 24px; box-shadow: var(--shadow);
+}
+.login-box .brand { justify-content: center; padding: 0 0 8px; }
+.login-box .err { color: var(--danger); font-size: 13px; margin: 0; }
+.login-box .remember { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.login-box .btn { width: 100%; justify-content: center; }
+.logout { margin: 0; }

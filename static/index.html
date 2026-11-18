@@ -10,7 +10,7 @@
 </head>
 <body>
   <header id="topbar">
-    <a class="brand" href="#/"><img src="/favicon.svg" alt="" width="20" height="20"> Modir</a>
+    <a class="brand" href="#/"><img src="/favicon.svg" alt="" width="20" height="20"> <span class="brand-name">Modir</span></a>
     <nav class="nav">
       <a href="#/" data-nav="overview">Overview</a>
       <a href="#/closed" data-nav="closed">Closed</a>
@@ -19,6 +19,7 @@
     <button class="btn sm primary" data-act="new-project" data-v="project">+ <span class="wide-only">New </span>project</button>
     <button class="btn sm" data-act="new-project" data-v="task">+ <span class="wide-only">New </span>task</button>
     <button class="btn sm theme-toggle" data-act="theme"></button>
+    <form method="post" action="/logout" class="logout"><button class="btn sm" title="Log out" aria-label="Log out"><span class="wide-only">Log out</span><span class="narrow-only">⏻</span></button></form>
   </header>
 
   <aside id="detail"></aside>
@@ -39,7 +40,6 @@
           <option value="1">P1 — top</option>
           <option value="2" selected>P2 — high</option>
           <option value="3">P3 — normal</option>
-          <option value="4">P4 — someday</option>
         </select>
       </label>
       <div class="swatches" data-swatches></div>

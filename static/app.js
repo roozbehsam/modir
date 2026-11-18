@@ -11,7 +11,7 @@ function showRail(html) {
 }
 const DAY = 864e5;
 const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#8b5cf6', '#84cc16'];
-const PRIO = { 1: 'Top', 2: 'High', 3: 'Normal', 4: 'Someday' };
+const PRIO = { 1: 'Top', 2: 'High', 3: 'Normal' };
 const TYPE = { project: 'Project', task: 'Task' };
 const typeTag = p => p.type === 'task' ? '<span class="ttag">Task</span>' : '';
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -22,6 +22,7 @@ async function api(method, url, body) {
     headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (r.status === 401) { location.href = '/login'; throw new Error(r.status); }
   if (!r.ok) { alert(`Error: ${r.status}`); throw new Error(r.status); }
   return r.status === 204 ? null : r.json();
 }
@@ -119,21 +120,16 @@ function showClosed() {
 
 // ---------- overview --------------------------------------------------------
 async function showOverview() {
-  const start = new Date(); start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() - state.range + 1);
-  const [acts, todos] = await Promise.all([
-    api('GET', `/api/timeline?from=${dayKey(start)}`),
-    api('GET', '/api/todos'),
-  ]);
+  const todos = await api('GET', '/api/todos');
   const active = state.projects.filter(p => p.status !== 'closed');
-  // One row per priority tier (P1 → P4). Within a row: open projects first, then
+  // One row per priority tier (P1 → P3). Within a row: open projects first, then
   // blocked, then paused; ties keep the API order (most recent activity first).
   // Projects get the big priority-tier cards; tasks get a compact list below.
   const STATUS_ORDER = { open: 0, blocked: 1, paused: 2 };
   const byPrio = (a, b) => a.priority - b.priority || STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
   const projects = active.filter(p => p.type !== 'task');
   const tasks = active.filter(p => p.type === 'task').sort(byPrio); // stable: keeps API activity order
-  const tiers = [1, 2, 3, 4].map(n => ({
+  const tiers = [1, 2, 3].map(n => ({
     n,
     list: projects.filter(p => p.priority === n).sort(byPrio),
   })).filter(t => t.list.length);
@@ -142,7 +138,7 @@ async function showOverview() {
           <div class="row between"><b>${esc(p.name)}</b>${p.status === 'blocked' ? '<span class="blk small">blocked</span>' : p.status === 'paused' ? '<span class="muted small">paused</span>' : ''}</div>
           ${p.description ? `<div class="pdesc muted small" title="${esc(p.description)}">${esc(p.description)}</div>` : ''}
           ${p.blockers ? `<div class="next blk">⛔ ${esc(p.first_blocker)}${p.blockers > 1 ? ` <span class="muted small">+${p.blockers - 1} more</span>` : ''}</div>` : ''}
-          <div class="next">${p.next_todo ? `→ ${esc(p.next_todo)}` : '<span class="muted">No todos planned</span>'}</div>
+          <div class="next${p.next_todo ? ' has-todo' : ''}">${p.next_todo ? `→ ${esc(p.next_todo)}` : '<span class="muted">No todos planned</span>'}</div>
           <div class="muted small">${p.todos} todo · ${p.actions} done · last ${ago(p.last_at)}</div>
         </a>`;
   const taskRow = p => `
@@ -160,18 +156,8 @@ async function showOverview() {
           </span>
         </a>`;
 
-  const todayCount = acts.filter(a => a.at.startsWith(dayKey(new Date()))).length;
-  const weekCount = acts.filter(a => new Date(a.at) > new Date(Date.now() - 7 * DAY)).length;
-
   showRail(todoRail(todos));
   main.innerHTML = `
-    <header class="head">
-      <div>
-        <h1>Overview</h1>
-        <p class="muted">${plural(active.filter(p => p.type !== 'task').length, 'active project')} · ${plural(active.filter(p => p.type === 'task').length, 'active task')} · ${todayCount} actions today · ${weekCount} this week</p>
-      </div>
-    </header>
-
     <section>
       <h2>Projects</h2>
       ${tiers.length ? tiers.map(t => `
@@ -185,14 +171,23 @@ async function showOverview() {
       <h2>Tasks <span class="muted small">${tasks.length || ''}</span></h2>
       ${tasks.length ? `<div class="tasklist">${tasks.map(taskRow).join('')}</div>` : '<p class="muted">No active tasks.</p>'}
     </section>
+`;
+}
 
-    <section>
-      <div class="row between">
-        <h2>Daily log</h2>
-        <div class="seg">${[30, 90, 365].map(r => `<button data-act="range" data-v="${r}" class="${r === state.range ? 'on' : ''}">${r === 365 ? '1y' : r + 'd'}</button>`).join('')}</div>
-      </div>
-      ${dailyLog(acts)}
-    </section>`;
+// Left panel when nothing is selected: the daily log across all projects.
+async function showDayLog() {
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - state.range + 1);
+  const acts = await api('GET', `/api/timeline?from=${dayKey(start)}`);
+  if (state.current) return;  // a project got selected while loading
+  const fresh = !$('.dlog', detail);
+  detail.innerHTML = `<div class="dlog${fresh ? ' entering' : ''}">
+    <div class="row between">
+      <h2>Daily log</h2>
+      <div class="seg">${[30, 90, 365].map(r => `<button data-act="range" data-v="${r}" class="${r === state.range ? 'on' : ''}">${r === 365 ? '1y' : r + 'd'}</button>`).join('')}</div>
+    </div>
+    ${dailyLog(acts)}
+  </div>`;
 }
 
 // Right rail on the overview: every open todo across active projects, plus every
@@ -313,16 +308,10 @@ function dailyLog(acts) {
 }
 
 // ---------- project view ----------------------------------------------------
-// Left panel: empty placeholder, or the selected project's full detail.
+// Left panel: the daily log, or the selected project's full detail.
 async function showProject(opened) {
-  if (!state.current) {
-    detail.innerHTML = `<div class="dempty">
-      <div class="dempty-ring"></div>
-      <b>No project selected</b>
-      <p class="muted small">Pick a project or task to see its details here.</p>
-    </div>`;
-    return;
-  }
+  document.body.classList.toggle('log-mode', !state.current);
+  if (!state.current) return showDayLog();
   const p = state.projects.find(x => x.id === state.current);
   if (!p) { location.hash = baseHash(); return; }
   state.entries = await api('GET', `/api/projects/${p.id}/entries`);
@@ -339,7 +328,7 @@ async function showProject(opened) {
       ${p.description ? `<p class="desc" dir="auto">${esc(p.description)}</p>` : ''}
       <div class="controls">
         <select data-pfield="status">${['open', 'blocked', 'paused', 'closed'].map(s => `<option ${s === p.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
-        <select data-pfield="priority">${[1, 2, 3, 4].map(n => `<option value="${n}" ${n === p.priority ? 'selected' : ''}>P${n} · ${PRIO[n]}</option>`).join('')}</select>
+        <select data-pfield="priority">${[1, 2, 3].map(n => `<option value="${n}" ${n === p.priority ? 'selected' : ''}>P${n} · ${PRIO[n]}</option>`).join('')}</select>
         <button class="btn sm" data-act="edit-project">Edit</button>
       </div>
     </header>
@@ -556,8 +545,8 @@ document.addEventListener('click', async ev => {
       form.querySelectorAll('.swatches button').forEach(b => b.classList.toggle('on', b === el));
       return;
     }
-    case 'range': state.range = +v; return showOverview();
-    case 'more-days': state.logDays += 14; return showOverview();
+    case 'range': state.range = +v; state.logDays = 10; return showDayLog();
+    case 'more-days': state.logDays += 14; return showDayLog();
     case 'todo-sort': state.todoSort = v; return showOverview();
     case 'close': return closeDetail();
     case 'refresh': return route();
